@@ -1,0 +1,20 @@
+{
+  "characters": ["MARCUS", "PRIYA"],
+  "lines": [
+    { "type": "direction", "speaker": null, "parenthetical": null, "text": "INT. UNIVERSITY LIBRARY STUDY ROOM - NIGHT" },
+    { "type": "direction", "speaker": null, "parenthetical": null, "text": "Laptops, empty energy drink cans. PRIYA (19) stares at a whiteboard covered in equations. MARCUS (19) bursts in, phone in hand." },
+    { "type": "dialogue", "speaker": "MARCUS", "parenthetical": null, "text": "You didn't answer the group chat." },
+    { "type": "dialogue", "speaker": "PRIYA", "parenthetical": "not looking up", "text": "I muted the group chat." },
+    { "type": "dialogue", "speaker": "MARCUS", "parenthetical": null, "text": "Forty messages, Priya. They're saying you're dropping the project." },
+    { "type": "direction", "speaker": null, "parenthetical": null, "text": "Priya caps her marker. Slowly." },
+    { "type": "dialogue", "speaker": "PRIYA", "parenthetical": null, "text": "I'm not dropping the project. I'm dropping you guys." },
+    { "type": "dialogue", "speaker": "MARCUS", "parenthetical": null, "text": "That's... that's the same thing." },
+    { "type": "direction", "speaker": null, "parenthetical": null, "text": "He sets his phone face down on the table." },
+    { "type": "dialogue", "speaker": "MARCUS", "parenthetical": "quieter", "text": "Was it something I did?" },
+    { "type": "direction", "speaker": null, "parenthetical": null, "text": "A long beat. Priya finally turns to face him." },
+    { "type": "dialogue", "speaker": "PRIYA", "parenthetical": null, "text": "You told them it was your idea." },
+    { "type": "direction", "speaker": null, "parenthetical": null, "text": "His phone buzzes. He doesn't look at it." },
+    { "type": "dialogue", "speaker": "MARCUS", "parenthetical": null, "text": "I panicked." },
+    { "type": "dialogue", "speaker": "PRIYA", "parenthetical": null, "text": "You presented." }
+  ]
+}
