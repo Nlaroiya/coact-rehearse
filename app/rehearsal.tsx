@@ -3,21 +3,18 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { cachedKeys, getClip, putClip } from "@/lib/audio-cache";
 import { MIC_MESSAGES, MicError, openMic, type Mic, type MicProblem } from "@/lib/mic";
-import { createTapeMix, startRecorders, type Recorders, type TapeMix } from "@/lib/recording";
+import { startRecorders, type Recorders } from "@/lib/recording";
 import { ARM_DELAY_MS, IDLE, MY_TURN, reduce, sceneStops, type RunEvent } from "@/lib/rehearsal-machine";
 import {
   clampPickup,
   clampReaderVolume,
   clampSilence,
   clampSpeed,
-  clampTapeReaderVolume,
   parseSettings,
   PICKUP,
   READER_VOLUME,
   SILENCE,
   SPEED,
-  TAPE_READER_VOLUME,
-  type AudioMode,
   type RehearsalSettings,
 } from "@/lib/rehearsal-settings";
 import type { Script } from "@/lib/script-schema";
@@ -144,7 +141,6 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange }: Props
   const [recordingOn, setRecordingOn] = useState(false); // (for display)
   const [preview, setPreview] = useState<MediaStream | null>(null); // the camera, for the mirrored preview
   const [tapeFormatLabel, setTapeFormatLabel] = useState<string | null>(null);
-  const tapeMix = useRef<TapeMix | null>(null);
   const recorders = useRef<Recorders | null>(null);
   const takeEvents = useRef<TakeEvent[]>([]);
   const loggedTurn = useRef(-1);
@@ -177,10 +173,9 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange }: Props
     settingsRef.current = settings;
     if (playing.current) {
       playing.current.playbackRate = settings.speed;
-      // Speakers: the reader's playback volume is also how loud they are in the tape.
-      if (settings.audioMode === "speakers") playing.current.volume = settings.readerVolume;
+      // The reader's playback volume is also how loud they are in the tape.
+      playing.current.volume = settings.readerVolume;
     }
-    tapeMix.current?.setTapeReaderVolume(settings.tapeReaderVolume);
     try {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     } catch {
@@ -347,10 +342,8 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange }: Props
     if (rehearsing) return;
     const m = mic.current;
     const rec = recorders.current;
-    const mix = tapeMix.current;
     mic.current = null;
     recorders.current = null;
-    tapeMix.current = null;
     if (!m) return;
     void (async () => {
       if (rec) {
@@ -359,7 +352,6 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange }: Props
         const recorded = await rec.stop();
         finishTakeRef.current(recorded, startedAt);
       }
-      mix?.close();
       m.close();
     })();
   }, [rehearsing]);
@@ -382,10 +374,7 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange }: Props
         if (mic.current && recordingRun.current) {
           // Both recorders start together, before the first line plays.
           try {
-            const s = settingsRef.current;
-            const mix = createTapeMix(mic.current, s.audioMode, s.tapeReaderVolume);
-            tapeMix.current = mix;
-            const rec = await startRecorders(mic.current, mix.audioTrack);
+            const rec = await startRecorders(mic.current);
             if (runRef.current.phase !== "countdown") {
               void rec.stop(); // Stop was pressed while the recorders were starting
               return;
@@ -493,9 +482,7 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange }: Props
       audio = new Audio(url);
       audio.preservesPitch = true; // faster or slower, but not higher or lower
       audio.playbackRate = speedRef.current;
-      const s = settingsRef.current;
-      if (s.audioMode === "speakers") audio.volume = s.readerVolume;
-      else tapeMix.current?.routeCostar(audio); // Headphones + recording: also mix it into the tape
+      audio.volume = settingsRef.current.readerVolume;
       const lineIndex = position;
       const speaker = script.lines[position].speaker ?? "";
       audio.addEventListener("playing", () => takeEvents.current.push({ t: performance.now(), kind: "costarStart", lineIndex, speaker }), { once: true });
@@ -667,18 +654,6 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange }: Props
             {settings.silence.toFixed(1)}s
           </span>
         </label>
-        <label className="flex items-center gap-2">
-          Audio mode
-          <select
-            value={settings.audioMode}
-            disabled={rehearsing}
-            onChange={(e) => setSettings({ ...settings, audioMode: e.target.value as AudioMode })}
-            className="rounded border border-zinc-300 px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900"
-          >
-            <option value="speakers">Speakers (self-tape)</option>
-            <option value="headphones">Headphones</option>
-          </select>
-        </label>
       </div>
 
       {/* Recording the take. Volumes apply immediately, even mid-scene. */}
@@ -693,8 +668,7 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange }: Props
           />
           Record take
         </label>
-        {settings.audioMode === "speakers" ? (
-          <label className="flex items-center gap-2">
+        <label className="flex items-center gap-2">
             Reader volume
             <input
               type="range"
@@ -709,24 +683,6 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange }: Props
               {Math.round(settings.readerVolume * 100)}%
             </span>
           </label>
-        ) : (
-          <label className={`flex items-center gap-2 ${settings.record ? "" : "opacity-40"}`}>
-            Reader volume in tape
-            <input
-              type="range"
-              min={TAPE_READER_VOLUME.min}
-              max={TAPE_READER_VOLUME.max}
-              step={TAPE_READER_VOLUME.step}
-              value={settings.tapeReaderVolume}
-              disabled={!settings.record}
-              onChange={(e) => setSettings({ ...settings, tapeReaderVolume: clampTapeReaderVolume(Number(e.target.value)) })}
-              className="w-32 accent-black dark:accent-zinc-50"
-            />
-            <span data-testid="tape-reader-volume-value" className="w-10 tabular-nums">
-              {Math.round(settings.tapeReaderVolume * 100)}%
-            </span>
-          </label>
-        )}
         <label className={`flex items-center gap-2 ${settings.record ? "" : "opacity-40"}`}>
           Scene name
           <input
@@ -746,7 +702,7 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange }: Props
         </label>
       </div>
 
-      {!rehearsing && settings.audioMode === "speakers" && (
+      {!rehearsing && (
         <p data-testid="speakers-tip" className="text-sm text-zinc-600 dark:text-zinc-400">
           Tip: Keep the reader quieter than your voice. Laptop volume around 50%.
         </p>

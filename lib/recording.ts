@@ -1,53 +1,9 @@
-// Browser-only: the tape's audio mix and the two recorders for a take.
+// Browser-only: the two recorders for a take.
+// The tape's audio is my mic as-is: it picks up the reader from the speakers, like a real
+// off-camera reader, so the costar audio is never mixed in digitally (that would double it).
+// My mic is never connected to the speakers.
 import type { Mic } from "./mic";
-import type { AudioMode } from "./rehearsal-settings";
 import { CRITIQUE_BITS_PER_SECOND, CRITIQUE_FORMATS, pickFormat, TAPE_FORMATS, type RecordingFormat } from "./take";
-
-// The audio that goes into the self-tape.
-//  - Speakers: my mic as-is. It already hears the reader from the speakers, like a real
-//    off-camera reader, so nothing is mixed in (that would double the reader).
-//  - Headphones: my mic + the costar clips, mixed in one AudioContext. The reader's level in
-//    the tape is its own setting and doesn't change what I hear.
-// Either way, my mic is never connected to the speakers.
-export type TapeMix = {
-  audioTrack: MediaStreamTrack;
-  routeCostar: (audio: HTMLAudioElement) => void; // call once per clip, before it plays
-  setTapeReaderVolume: (volume: number) => void;
-  close: () => void;
-};
-
-export function createTapeMix(mic: Mic, mode: AudioMode, tapeReaderVolume: number): TapeMix {
-  if (mode === "speakers") {
-    return {
-      audioTrack: mic.stream.getAudioTracks()[0],
-      routeCostar: () => {},
-      setTapeReaderVolume: () => {},
-      close: () => {},
-    };
-  }
-  const { context } = mic;
-  const mix = context.createMediaStreamDestination();
-  const readerInTape = context.createGain();
-  readerInTape.gain.value = tapeReaderVolume;
-  readerInTape.connect(mix);
-  mic.source.connect(mix);
-  return {
-    audioTrack: mix.stream.getAudioTracks()[0],
-    routeCostar: (audio) => {
-      // Once routed, the clip only sounds through these connections: headphones + tape.
-      const clip = context.createMediaElementSource(audio);
-      clip.connect(context.destination); // what I hear
-      clip.connect(readerInTape); // what the tape hears
-    },
-    setTapeReaderVolume: (volume) => {
-      readerInTape.gain.value = volume;
-    },
-    close: () => {
-      mic.source.disconnect(mix);
-      readerInTape.disconnect();
-    },
-  };
-}
 
 export type RecordedTake = {
   tape: Blob;
@@ -77,13 +33,14 @@ function record(stream: MediaStream, format: RecordingFormat, options: MediaReco
 }
 
 // Starts the self-tape and critique recorders together; resolves once both are running.
-export async function startRecorders(mic: Mic, tapeAudio: MediaStreamTrack): Promise<Recorders> {
+export async function startRecorders(mic: Mic): Promise<Recorders> {
   const tapeFormat = pickFormat(TAPE_FORMATS, isSupported);
   const critiqueFormat = pickFormat(CRITIQUE_FORMATS, isSupported);
   if (!tapeFormat || !critiqueFormat) throw new Error("This browser can't record video. Try the latest Chrome, Edge or Safari.");
 
   const video = mic.stream.getVideoTracks()[0];
-  const tape = record(new MediaStream([video, tapeAudio]), tapeFormat, { videoBitsPerSecond: 2_500_000 });
+  const audio = mic.stream.getAudioTracks()[0];
+  const tape = record(new MediaStream([video, audio]), tapeFormat, { videoBitsPerSecond: 2_500_000 });
   const critique = record(new MediaStream(mic.stream.getAudioTracks()), critiqueFormat, {
     audioBitsPerSecond: CRITIQUE_BITS_PER_SECOND,
   });

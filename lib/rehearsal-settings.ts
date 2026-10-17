@@ -6,13 +6,9 @@ export const PICKUP = { min: 0, max: 2, step: 0.1, default: 0.3 } as const; // s
 // Hands-free: how long I must stay quiet before my line counts as finished.
 export const SILENCE = { min: 0.6, max: 3, step: 0.1, default: 1.2 } as const; // seconds
 
-// Speakers mode: how loud the reader plays (and so how loud they are in the tape).
-export const READER_VOLUME = { min: 0.3, max: 1, step: 0.05, default: 0.6 } as const;
-// Headphones mode: how loud the reader is mixed into the tape (doesn't change what I hear).
-export const TAPE_READER_VOLUME = { min: 0.4, max: 1, step: 0.05, default: 0.7 } as const;
-
-export const AUDIO_MODES = ["speakers", "headphones"] as const;
-export type AudioMode = (typeof AUDIO_MODES)[number];
+// How loud the reader plays from the speakers, and so how loud they are in the tape
+// (the mic picks them up from the room, like a real off-camera reader).
+export const READER_VOLUME = { min: 0.3, max: 1, step: 0.05, default: 0.8 } as const;
 
 type Range = { min: number; max: number; step: number; default: number };
 
@@ -29,17 +25,14 @@ export const clampSpeed = (value: unknown) => clamp(value, SPEED);
 export const clampPickup = (value: unknown) => clamp(value, PICKUP);
 export const clampSilence = (value: unknown) => clamp(value, SILENCE);
 export const clampReaderVolume = (value: unknown) => clamp(value, READER_VOLUME);
-export const clampTapeReaderVolume = (value: unknown) => clamp(value, TAPE_READER_VOLUME);
 
 export type RehearsalSettings = {
   speed: number;
   pickup: number;
   silence: number;
-  audioMode: AudioMode;
   handsFree: boolean;
   record: boolean; // record the take (camera + mic)
   readerVolume: number;
-  tapeReaderVolume: number;
 };
 
 // Reads settings from saved JSON, falling back to defaults for anything missing or invalid.
@@ -49,10 +42,8 @@ export function parseSettings(raw: unknown): RehearsalSettings {
     speed: clampSpeed(obj.speed),
     pickup: clampPickup(obj.pickup),
     silence: clampSilence(obj.silence),
-    audioMode: AUDIO_MODES.includes(obj.audioMode as AudioMode) ? (obj.audioMode as AudioMode) : "speakers",
     handsFree: typeof obj.handsFree === "boolean" ? obj.handsFree : true,
     record: typeof obj.record === "boolean" ? obj.record : true,
     readerVolume: clampReaderVolume(obj.readerVolume),
-    tapeReaderVolume: clampTapeReaderVolume(obj.tapeReaderVolume),
   };
 }

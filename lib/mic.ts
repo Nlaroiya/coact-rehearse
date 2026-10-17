@@ -20,8 +20,6 @@ export class MicError extends Error {
 
 export type Mic = {
   stream: MediaStream; // the mic track, plus the camera track when recording
-  context: AudioContext; // one AudioContext for detection and (in Headphones mode) the tape mix
-  source: MediaStreamAudioSourceNode; // the mic inside that AudioContext; never sent to the speakers
   level: () => number; // current loudness in dBFS
   close: () => void;
   describe: () => string; // diagnostics: which mic, and is audio processing running
@@ -62,8 +60,6 @@ export async function openMic({ camera }: { camera: boolean }): Promise<Mic> {
 
   return {
     stream,
-    context,
-    source,
     level: () => {
       analyser.getFloatTimeDomainData(samples);
       return levelDb(samples);
