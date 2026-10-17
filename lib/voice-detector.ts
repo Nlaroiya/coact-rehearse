@@ -3,12 +3,12 @@
 
 export const FRAME_MS = 50; // how often the mic level is checked
 export const MIN_SPEECH_MS = 300; // shorter bursts (breaths, clicks) don't count as speech
-export const MAX_DIP_MS = 100; // tiny dips between syllables don't break up speech
+export const MAX_DIP_MS = 150; // short gaps between syllables and words don't break up speech
 export const WAITING_AFTER_MS = 10_000; // show "Waiting for you..." after this long with no speech
 
-// Speech threshold = room noise + 10 dB, kept within sensible limits so a silent room
+// Speech threshold = room noise + 8 dB, kept within sensible limits so a silent room
 // doesn't make every breath count, and a noisy room doesn't make speech impossible.
-export const NOISE_MARGIN_DB = 10;
+export const NOISE_MARGIN_DB = 8; // 8 rather than 10 gives soft-spoken lines more headroom
 export const MIN_THRESHOLD_DB = -50;
 export const MAX_THRESHOLD_DB = -25;
 export const SILENT_DB = -100; // the level reported for pure silence

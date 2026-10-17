@@ -3,19 +3,25 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { cachedKeys, getClip, putClip } from "@/lib/audio-cache";
 import { MIC_MESSAGES, MicError, openMic, type Mic, type MicProblem } from "@/lib/mic";
+import { createTapeMix, startRecorders, type Recorders, type TapeMix } from "@/lib/recording";
 import { ARM_DELAY_MS, IDLE, MY_TURN, reduce, sceneStops, type RunEvent } from "@/lib/rehearsal-machine";
 import {
   clampPickup,
+  clampReaderVolume,
   clampSilence,
   clampSpeed,
+  clampTapeReaderVolume,
   parseSettings,
   PICKUP,
+  READER_VOLUME,
   SILENCE,
   SPEED,
+  TAPE_READER_VOLUME,
   type AudioMode,
   type RehearsalSettings,
 } from "@/lib/rehearsal-settings";
 import type { Script } from "@/lib/script-schema";
+import { buildTimingLog, suggestSceneName, takeFilename, type TakeEvent } from "@/lib/take";
 import {
   costarAudioJobs,
   defaultCasting,
@@ -38,6 +44,7 @@ import {
 } from "@/lib/voice-detector";
 import { isVoiceId, TTS_MODEL, VOICES } from "@/lib/voices";
 import MicMeter from "./mic-meter";
+import TakeReview, { type Take } from "./take-review";
 
 // How the detector's findings are passed on to the rehearsal state machine.
 const DETECTOR_TO_RUN: Record<DetectorEvent, Exclude<RunEvent["type"], "START">> = {
@@ -82,9 +89,36 @@ function effectiveCast(saved: CastChoices, characters: string[]): CastChoices {
   return { me, casting };
 }
 
-type Props = { script: Script; onRehearsingChange: (rehearsing: boolean) => void };
+type Props = {
+  script: Script;
+  pdfName: string | null; // used to suggest a scene name for the take's file name
+  onRehearsingChange: (rehearsing: boolean) => void;
+};
 
-export default function Rehearsal({ script, onRehearsingChange }: Props) {
+const SCENE_NAME_KEY = "scene-partner:scene-name";
+const TAKES_KEY = "scene-partner:take-numbers"; // { "study-room|PRIYA": 2 }
+
+function loadText(key: string): string {
+  try {
+    return localStorage.getItem(key) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+// The next take number for this scene and role, saved so it survives a refresh.
+function nextTakeNumber(scene: string, role: string): number {
+  try {
+    const all = JSON.parse(localStorage.getItem(TAKES_KEY) ?? "{}");
+    const n = (typeof all[`${scene}|${role}`] === "number" ? all[`${scene}|${role}`] : 0) + 1;
+    localStorage.setItem(TAKES_KEY, JSON.stringify({ ...all, [`${scene}|${role}`]: n }));
+    return n;
+  } catch {
+    return 1;
+  }
+}
+
+export default function Rehearsal({ script, pdfName, onRehearsingChange }: Props) {
   const [saved, setSaved] = useState<CastChoices>(loadCast);
   const { me, casting } = effectiveCast(saved, script.characters);
 
@@ -101,7 +135,23 @@ export default function Rehearsal({ script, onRehearsingChange }: Props) {
   const [settings, setSettings] = useState<RehearsalSettings>(loadSettings);
   const speedRef = useRef(settings.speed);
   const silenceRef = useRef(settings.silence);
+  const settingsRef = useRef(settings);
   const playing = useRef<HTMLAudioElement | null>(null);
+
+  // Recording a take: the tape's audio mix, the two recorders, and what happened when.
+  const handsFreeRun = useRef(false); // is this run listening for my lines?
+  const recordingRun = useRef(false); // is this run being recorded?
+  const [recordingOn, setRecordingOn] = useState(false); // (for display)
+  const [preview, setPreview] = useState<MediaStream | null>(null); // the camera, for the mirrored preview
+  const [tapeFormatLabel, setTapeFormatLabel] = useState<string | null>(null);
+  const tapeMix = useRef<TapeMix | null>(null);
+  const recorders = useRef<Recorders | null>(null);
+  const takeEvents = useRef<TakeEvent[]>([]);
+  const loggedTurn = useRef(-1);
+  const [take, setTake] = useState<Take | null>(null);
+  const [sceneName, setSceneName] = useState(() => loadText(SCENE_NAME_KEY));
+  const suggestedName = suggestSceneName(pdfName, script.lines);
+  const sceneForFile = sceneName.trim() || suggestedName;
 
   // Hands-free: the open mic, its live level, and the calibrated speech threshold.
   const mic = useRef<Mic | null>(null);
@@ -124,7 +174,13 @@ export default function Rehearsal({ script, onRehearsingChange }: Props) {
   useEffect(() => {
     speedRef.current = settings.speed;
     silenceRef.current = settings.silence;
-    if (playing.current) playing.current.playbackRate = settings.speed;
+    settingsRef.current = settings;
+    if (playing.current) {
+      playing.current.playbackRate = settings.speed;
+      // Speakers: the reader's playback volume is also how loud they are in the tape.
+      if (settings.audioMode === "speakers") playing.current.volume = settings.readerVolume;
+    }
+    tapeMix.current?.setTapeReaderVolume(settings.tapeReaderVolume);
     try {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     } catch {
@@ -203,19 +259,27 @@ export default function Rehearsal({ script, onRehearsingChange }: Props) {
     setProgress(null);
   }
 
-  async function startRehearsal(handsFree = settings.handsFree) {
+  async function startRehearsal({ handsFree = settings.handsFree, record = settings.record } = {}) {
     (document.activeElement as HTMLElement | null)?.blur(); // so Space doesn't press a button
     setError(null);
     setMicProblem(null);
-    if (handsFree) {
+    discardTake();
+    if (handsFree || record) {
       try {
-        mic.current = await openMic(); // the browser asks for permission here
+        mic.current = await openMic({ camera: record }); // the browser asks for permission here
       } catch (err) {
         setMicProblem(err instanceof MicError ? err.problem : "other");
         return;
       }
     }
+    handsFreeRun.current = handsFree;
+    recordingRun.current = record;
     setMicOn(handsFree);
+    setRecordingOn(record);
+    setTapeFormatLabel(null);
+    setPreview(record && mic.current ? new MediaStream(mic.current.stream.getVideoTracks()) : null);
+    takeEvents.current = [];
+    loggedTurn.current = -1;
     noiseSamples.current = [];
     noise.current = null;
     thresholdRef.current = null;
@@ -229,16 +293,75 @@ export default function Rehearsal({ script, onRehearsingChange }: Props) {
   // Mic denied: turn hands-free off and rehearse with the keyboard instead.
   function startWithoutHandsFree() {
     setSettings({ ...settings, handsFree: false });
-    void startRehearsal(false);
+    void startRehearsal({ handsFree: false, record: false });
   }
+
+  // Camera denied or missing: rehearse without recording.
+  function startWithoutRecording() {
+    setSettings({ ...settings, record: false });
+    void startRehearsal({ record: false });
+  }
+
+  function discardTake() {
+    setTake((old) => {
+      if (old) URL.revokeObjectURL(old.url);
+      return null;
+    });
+  }
+
+  // My line ended by key press (Space, Page Down, Right Arrow or the Next button).
+  function endMyLineByKey() {
+    const r = runRef.current;
+    if (MY_TURN.includes(r.phase) && r.stops[r.at]) {
+      takeEvents.current.push({ t: performance.now(), kind: "myLineEnd", lineIndex: r.stops[r.at].lineIndex, by: "key" });
+    }
+    dispatch({ type: "ADVANCE" });
+  }
+
+  // After the take: build the timing log, name the file, and show it for playback.
+  function finishTake(recorded: Awaited<ReturnType<Recorders["stop"]>>, startedAt: Date) {
+    const number = nextTakeNumber(sceneForFile, me);
+    setTake({
+      url: URL.createObjectURL(recorded.tape),
+      tape: recorded.tape,
+      tapeFormat: recorded.tapeFormat,
+      filename: takeFilename(sceneForFile, me, number, startedAt, recorded.tapeFormat.ext),
+      number,
+      critique: {
+        audio: recorded.critique,
+        format: recorded.critiqueFormat,
+        timing: buildTimingLog(takeEvents.current, startedAt),
+      },
+    });
+  }
+  const finishTakeRef = useRef(finishTake);
+  useEffect(() => {
+    finishTakeRef.current = finishTake;
+  });
 
   const stopRehearsal = () => dispatch({ type: "STOP" });
 
-  // Release the mic as soon as the scene ends or is stopped (and if the page closes).
+  // When the scene ends or is stopped: stop the recorders first (so the files are complete),
+  // then release the camera and mic. Also if the page closes.
   useEffect(() => {
     if (rehearsing) return;
-    mic.current?.close();
+    const m = mic.current;
+    const rec = recorders.current;
+    const mix = tapeMix.current;
     mic.current = null;
+    recorders.current = null;
+    tapeMix.current = null;
+    if (!m) return;
+    void (async () => {
+      if (rec) {
+        takeEvents.current.push({ t: performance.now(), kind: "stop" });
+        const startedAt = new Date(Date.now() - (performance.now() - rec.startedAt));
+        const recorded = await rec.stop();
+        finishTakeRef.current(recorded, startedAt);
+      }
+      mix?.close();
+      m.close();
+    })();
   }, [rehearsing]);
   useEffect(() => () => mic.current?.close(), []);
 
@@ -248,13 +371,33 @@ export default function Rehearsal({ script, onRehearsingChange }: Props) {
     const timers = [
       setTimeout(() => setCountdown(2), 1000),
       setTimeout(() => setCountdown(1), 2000),
-      setTimeout(() => {
-        if (mic.current) {
+      setTimeout(async () => {
+        if (mic.current && handsFreeRun.current) {
           const t = calibrateThreshold(noiseSamples.current);
           calibrated.current = t;
           thresholdRef.current = t;
           noise.current = startNoiseTracker(noiseSamples.current, t);
           setThreshold(t);
+        }
+        if (mic.current && recordingRun.current) {
+          // Both recorders start together, before the first line plays.
+          try {
+            const s = settingsRef.current;
+            const mix = createTapeMix(mic.current, s.audioMode, s.tapeReaderVolume);
+            tapeMix.current = mix;
+            const rec = await startRecorders(mic.current, mix.audioTrack);
+            if (runRef.current.phase !== "countdown") {
+              void rec.stop(); // Stop was pressed while the recorders were starting
+              return;
+            }
+            recorders.current = rec;
+            takeEvents.current.push({ t: rec.startedAt, kind: "recordingStart" });
+            setTapeFormatLabel(rec.tapeFormat.label);
+          } catch (err) {
+            setError(err instanceof Error ? err.message : "Recording couldn't start.");
+            dispatch({ type: "STOP" });
+            return;
+          }
         }
         dispatch({ type: "COUNTDOWN_DONE" });
       }, 3000),
@@ -266,8 +409,8 @@ export default function Rehearsal({ script, onRehearsingChange }: Props) {
   // the countdown), tracking background noise (my turn and the pauses before the costar),
   // and detection (my turn, once armed). Never while the costar plays.
   useEffect(() => {
-    if (!rehearsing || !mic.current) return;
-    // TEMPORARY diagnostics (development only): one summary line per second, copied into
+    if (!rehearsing || !mic.current || !handsFreeRun.current) return;
+    // Diagnostics (development only): one summary line per second, copied into
     // .next/dev/logs/next-development.log so we can see what the real mic hears.
     const diag = { levels: [] as number[], last: performance.now() };
     if (process.env.NODE_ENV === "development") console.info(`[hands-free] start ${mic.current.describe()}`);
@@ -314,6 +457,10 @@ export default function Rehearsal({ script, onRehearsingChange }: Props) {
       detector.current.state = out.state;
       if (out.event) {
         if (process.env.NODE_ENV === "development") console.info(`[hands-free] event ${out.event} at ${db.toFixed(1)} dB (threshold ${thresholdRef.current.toFixed(1)})`);
+        const lineIndex = r.stops[r.at].lineIndex;
+        const t = performance.now();
+        if (out.event === "lineEnd") takeEvents.current.push({ t, kind: "myLineEnd", lineIndex, by: "silence" });
+        else if (out.event !== "waiting") takeEvents.current.push({ t, kind: out.event, lineIndex });
         dispatch({ type: DETECTOR_TO_RUN[out.event] });
       }
     }, FRAME_MS);
@@ -346,7 +493,16 @@ export default function Rehearsal({ script, onRehearsingChange }: Props) {
       audio = new Audio(url);
       audio.preservesPitch = true; // faster or slower, but not higher or lower
       audio.playbackRate = speedRef.current;
-      audio.onended = () => dispatch({ type: "CLIP_ENDED" });
+      const s = settingsRef.current;
+      if (s.audioMode === "speakers") audio.volume = s.readerVolume;
+      else tapeMix.current?.routeCostar(audio); // Headphones + recording: also mix it into the tape
+      const lineIndex = position;
+      const speaker = script.lines[position].speaker ?? "";
+      audio.addEventListener("playing", () => takeEvents.current.push({ t: performance.now(), kind: "costarStart", lineIndex, speaker }), { once: true });
+      audio.onended = () => {
+        takeEvents.current.push({ t: performance.now(), kind: "costarEnd", lineIndex });
+        dispatch({ type: "CLIP_ENDED" });
+      };
       playing.current = audio;
       audio.play().catch(() => setError("The browser blocked audio playback. Click Start again."));
     })();
@@ -356,7 +512,15 @@ export default function Rehearsal({ script, onRehearsingChange }: Props) {
       if (playing.current === audio) playing.current = null;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [run.phase, position, jobByLine]);
+  }, [run.phase, position, jobByLine, script.lines]);
+
+  // The start of each of my turns, for the timing log.
+  useEffect(() => {
+    if (!MY_TURN.includes(run.phase) || loggedTurn.current === run.at) return;
+    loggedTurn.current = run.at;
+    const stop = run.stops[run.at];
+    takeEvents.current.push({ t: performance.now(), kind: "myTurnStart", lineIndex: stop.lineIndex, speaker: me });
+  }, [run.phase, run.at, run.stops, me]);
 
   // listening right after a costar clip: arm the detector 250ms after the clip ends.
   useEffect(() => {
@@ -376,7 +540,7 @@ export default function Rehearsal({ script, onRehearsingChange }: Props) {
         (target.tagName === "INPUT" && target.type !== "range"); // a focused slider still lets keys continue
       if (typing) return;
       e.preventDefault(); // stop the page from scrolling, or a slider from moving
-      dispatch({ type: "ADVANCE" });
+      endMyLineByKey();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -517,6 +681,71 @@ export default function Rehearsal({ script, onRehearsingChange }: Props) {
         </label>
       </div>
 
+      {/* Recording the take. Volumes apply immediately, even mid-scene. */}
+      <div className="flex flex-wrap items-center gap-x-8 gap-y-2 text-sm">
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={settings.record}
+            disabled={rehearsing}
+            onChange={(e) => setSettings({ ...settings, record: e.target.checked })}
+            className="accent-black dark:accent-zinc-50"
+          />
+          Record take
+        </label>
+        {settings.audioMode === "speakers" ? (
+          <label className="flex items-center gap-2">
+            Reader volume
+            <input
+              type="range"
+              min={READER_VOLUME.min}
+              max={READER_VOLUME.max}
+              step={READER_VOLUME.step}
+              value={settings.readerVolume}
+              onChange={(e) => setSettings({ ...settings, readerVolume: clampReaderVolume(Number(e.target.value)) })}
+              className="w-32 accent-black dark:accent-zinc-50"
+            />
+            <span data-testid="reader-volume-value" className="w-10 tabular-nums">
+              {Math.round(settings.readerVolume * 100)}%
+            </span>
+          </label>
+        ) : (
+          <label className={`flex items-center gap-2 ${settings.record ? "" : "opacity-40"}`}>
+            Reader volume in tape
+            <input
+              type="range"
+              min={TAPE_READER_VOLUME.min}
+              max={TAPE_READER_VOLUME.max}
+              step={TAPE_READER_VOLUME.step}
+              value={settings.tapeReaderVolume}
+              disabled={!settings.record}
+              onChange={(e) => setSettings({ ...settings, tapeReaderVolume: clampTapeReaderVolume(Number(e.target.value)) })}
+              className="w-32 accent-black dark:accent-zinc-50"
+            />
+            <span data-testid="tape-reader-volume-value" className="w-10 tabular-nums">
+              {Math.round(settings.tapeReaderVolume * 100)}%
+            </span>
+          </label>
+        )}
+        <label className={`flex items-center gap-2 ${settings.record ? "" : "opacity-40"}`}>
+          Scene name
+          <input
+            value={sceneName}
+            placeholder={suggestedName}
+            disabled={rehearsing}
+            onChange={(e) => {
+              setSceneName(e.target.value);
+              try {
+                localStorage.setItem(SCENE_NAME_KEY, e.target.value);
+              } catch {
+                // Storage blocked; the name just won't survive a refresh.
+              }
+            }}
+            className="w-48 rounded border border-zinc-300 px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900"
+          />
+        </label>
+      </div>
+
       {!rehearsing && settings.audioMode === "speakers" && (
         <p data-testid="speakers-tip" className="text-sm text-zinc-600 dark:text-zinc-400">
           Tip: Keep the reader quieter than your voice. Laptop volume around 50%.
@@ -526,13 +755,23 @@ export default function Rehearsal({ script, onRehearsingChange }: Props) {
       {micProblem && (
         <div role="alert" className="flex flex-wrap items-center gap-3 rounded bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
           <span data-testid="mic-problem">{MIC_MESSAGES[micProblem]}</span>
-          <button onClick={startWithoutHandsFree} className="rounded border border-amber-400 px-3 py-1 font-medium">
-            Rehearse without hands-free
-          </button>
+          {settings.record ? (
+            <button onClick={startWithoutRecording} className="rounded border border-amber-400 px-3 py-1 font-medium">
+              Rehearse without recording
+            </button>
+          ) : (
+            <button onClick={startWithoutHandsFree} className="rounded border border-amber-400 px-3 py-1 font-medium">
+              Rehearse without hands-free
+            </button>
+          )}
         </div>
       )}
 
-      {!rehearsing && (
+      {take && !rehearsing && (
+        <TakeReview take={take} onRetake={() => void startRehearsal()} onDiscard={discardTake} />
+      )}
+
+      {!rehearsing && !take && (
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <p data-testid="audio-summary" className="text-zinc-600 dark:text-zinc-400">
             {jobs.length === 0
@@ -586,7 +825,7 @@ export default function Rehearsal({ script, onRehearsingChange }: Props) {
             <button
               onClick={(e) => {
                 e.currentTarget.blur();
-                dispatch({ type: "ADVANCE" });
+                endMyLineByKey();
               }}
               disabled={!myTurn}
               className="ml-auto rounded bg-black px-4 py-1.5 font-medium text-white disabled:opacity-40 dark:bg-zinc-50 dark:text-black"
@@ -602,6 +841,24 @@ export default function Rehearsal({ script, onRehearsingChange }: Props) {
               </div>
             )}
           </div>
+          {recordingOn && (
+            <div className="flex flex-col gap-1">
+              {/* Mirrored on screen only (like a mirror); the recording itself is not mirrored. */}
+              <video
+                ref={(el) => {
+                  if (el && el.srcObject !== preview) el.srcObject = preview;
+                }}
+                autoPlay
+                muted
+                playsInline
+                data-testid="camera-preview"
+                className="aspect-video w-full max-w-md -scale-x-100 rounded bg-black"
+              />
+              <span className="text-xs text-red-600" data-testid="recording-status">
+                {tapeFormatLabel ? `● Recording: ${tapeFormatLabel}` : "Camera ready. Recording starts after the countdown."}
+              </span>
+            </div>
+          )}
           <ol className="flex flex-col gap-2">
             {script.lines.map((line, i) => (
               <li

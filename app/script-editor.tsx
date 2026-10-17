@@ -222,7 +222,7 @@ function Editor() {
             </div>
           </section>
 
-          <Rehearsal script={script} onRehearsingChange={setRehearsing} />
+          <Rehearsal script={script} pdfName={pdf?.name ?? null} onRehearsingChange={setRehearsing} />
 
           {/* Hidden while rehearsing, so lines can't change mid-scene. */}
           <section className={`flex flex-col gap-3 ${rehearsing ? "hidden" : ""}`}>

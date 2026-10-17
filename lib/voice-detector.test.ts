@@ -44,13 +44,13 @@ describe("levelDb", () => {
 });
 
 describe("calibrateThreshold", () => {
-  it("sets the threshold 10 dB above the room's noise", () => {
-    expect(calibrateThreshold(frames(-55, 2000))).toBe(-45);
+  it("sets the threshold 8 dB above the room's noise", () => {
+    expect(calibrateThreshold(frames(-55, 2000))).toBe(-47);
   });
 
   it("uses the louder end of the noise, not a lucky quiet moment", () => {
     const noise = [...frames(-70, 1000), ...frames(-52, 1000)];
-    expect(calibrateThreshold(noise)).toBe(-42);
+    expect(calibrateThreshold(noise)).toBe(-44);
   });
 
   it("stays within sensible limits for very quiet and very noisy rooms", () => {
@@ -248,7 +248,7 @@ describe("tracked threshold (background noise that changes mid-scene)", () => {
     for (let i = 0; i < 19; i++) tracker = trackLevel(tracker, -50, CALIBRATED);
     expect(trackedThreshold(tracker, CALIBRATED)).toBe(CALIBRATED);
     tracker = trackLevel(tracker, -50, CALIBRATED);
-    expect(trackedThreshold(tracker, CALIBRATED)).toBeCloseTo(-40);
+    expect(trackedThreshold(tracker, CALIBRATED)).toBeCloseTo(-42); // -50 + 8
   });
 });
 
