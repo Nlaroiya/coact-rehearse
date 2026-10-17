@@ -20,6 +20,9 @@ Next.js (App Router) + TypeScript + Tailwind, deployed on Vercel from GitHub.
 Line order in the array = scene order. Directions are never spoken aloud.
 
 ## Rules
+- Default audio mode is Speakers (self-tape, no headphones): mic processing
+  (echo cancellation, noise suppression, auto-gain) OFF, no digital costar
+  mix. Headphones mode is optional and uses the digital mixer.
 - API keys live only in .env.local and Vercel env vars. Never in browser
   code, never committed.
 - Every page AND every /api route sits behind the passcode gate. If

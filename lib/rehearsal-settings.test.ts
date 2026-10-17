@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clampPickup, clampSpeed, parseSettings } from "./rehearsal-settings";
+import { clampPickup, clampSilence, clampSpeed, parseSettings } from "./rehearsal-settings";
 
 describe("clampSpeed", () => {
   it("keeps values inside 0.75–1.25", () => {
@@ -48,11 +48,40 @@ describe("clampPickup", () => {
   });
 });
 
+describe("clampSilence", () => {
+  it("keeps values inside 0.6–3.0 seconds", () => {
+    expect(clampSilence(0.6)).toBe(0.6);
+    expect(clampSilence(1.2)).toBe(1.2);
+    expect(clampSilence(3)).toBe(3);
+  });
+
+  it("pulls values outside the range to the nearest limit", () => {
+    expect(clampSilence(0)).toBe(0.6);
+    expect(clampSilence(10)).toBe(3);
+  });
+
+  it("snaps to 0.1 steps", () => {
+    expect(clampSilence(1.24)).toBe(1.2);
+    expect(clampSilence(0.66)).toBe(0.7);
+  });
+
+  it("uses the default (1.2s) for anything that isn't a number", () => {
+    for (const bad of [NaN, "1", null, undefined]) expect(clampSilence(bad)).toBe(1.2);
+  });
+});
+
+const DEFAULTS = { speed: 1, pickup: 0.3, silence: 1.2, audioMode: "speakers", handsFree: true };
+
 describe("parseSettings", () => {
   it("clamps saved values and fills in missing ones", () => {
-    expect(parseSettings({ speed: 9, pickup: -2 })).toEqual({ speed: 1.25, pickup: 0 });
-    expect(parseSettings({ speed: 0.9 })).toEqual({ speed: 0.9, pickup: 0.3 });
-    expect(parseSettings(null)).toEqual({ speed: 1, pickup: 0.3 });
-    expect(parseSettings("garbage")).toEqual({ speed: 1, pickup: 0.3 });
+    expect(parseSettings({ speed: 9, pickup: -2, silence: 99 })).toEqual({ ...DEFAULTS, speed: 1.25, pickup: 0, silence: 3 });
+    expect(parseSettings({ speed: 0.9 })).toEqual({ ...DEFAULTS, speed: 0.9 });
+    expect(parseSettings(null)).toEqual(DEFAULTS);
+    expect(parseSettings("garbage")).toEqual(DEFAULTS);
+  });
+
+  it("defaults to Speakers mode and hands-free on, and rejects unknown values", () => {
+    expect(parseSettings({ audioMode: "headphones", handsFree: false })).toMatchObject({ audioMode: "headphones", handsFree: false });
+    expect(parseSettings({ audioMode: "radio", handsFree: "yes" })).toMatchObject({ audioMode: "speakers", handsFree: true });
   });
 });
