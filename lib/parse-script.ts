@@ -11,7 +11,8 @@ Rules:
 - Each spoken speech becomes one "dialogue" line. Every other piece of story text (scene headings, action, stage directions, transitions) becomes a "direction" line with speaker null.
 - Speaker names: use one canonical UPPERCASE name per character. Strip extensions and suffixes like (CONT'D), (CONT’D), (V.O.), (O.S.), (O.C.) and (OFF), so JOHN, JOHN (CONT'D) and JOHN (V.O.) are all JOHN.
 - "characters" lists each canonical speaker name once, in order of first appearance. Only include characters who speak.
-- Parentheticals (e.g. "(quieter)") go in "parenthetical" without the surrounding parentheses, never inside "text". Use null when there is none.
+- Parentheticals (e.g. "(quieter)") go in "parenthetical" without the surrounding parentheses, never inside "text". Use null when there is none. Only short notes on HOW a line is said (e.g. "smiling", "quieter", "to Sam") are parentheticals.
+- Actions in parentheses are stage directions, in every format, including stage-play style "NAME: line" scripts. If an action appears inside or at the start of a speech, split it out: e.g. "JONAH: Fine. (He sits up.) Happy now?" becomes dialogue "Fine.", direction "He sits up.", dialogue "Happy now?". An action naming a character, e.g. "(BLAIR takes a photo)", is always a direction. Dialogue "text" must never contain parentheses.
 - Copy all text exactly as written, word for word. Never invent, summarize, correct, or reword anything. Joining a sentence that was wrapped across several lines into one line is fine.
 - Ignore page numbers, scene numbers, "CONTINUED", "(MORE)", "CONTINUED:", headers, footers, revision marks and watermarks.
 - Keep the original order.`;

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { MAX_CHARS, MAX_PDF_BYTES, MAX_PDF_LABEL } from "@/lib/limits";
 import { ScriptSchema, type Line, type Script } from "@/lib/script-schema";
+import Rehearsal from "./rehearsal";
 
 const STORAGE_KEY = "scene-partner:editor";
 
@@ -40,6 +41,7 @@ function Editor() {
   const [state, setState] = useState<Saved>(loadSaved);
   const [parsing, setParsing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rehearsing, setRehearsing] = useState(false);
   // The chosen PDF lives only in memory; files can't be saved to localStorage.
   const [pdf, setPdf] = useState<File | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -220,7 +222,10 @@ function Editor() {
             </div>
           </section>
 
-          <section className="flex flex-col gap-3">
+          <Rehearsal script={script} onRehearsingChange={setRehearsing} />
+
+          {/* Hidden while rehearsing, so lines can't change mid-scene. */}
+          <section className={`flex flex-col gap-3 ${rehearsing ? "hidden" : ""}`}>
             <h2 className="font-medium">Lines ({script.lines.length})</h2>
             {script.lines.map((line, i) => (
               <div

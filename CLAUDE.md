@@ -9,7 +9,7 @@ explain new concepts in plain language, and wait for approval on plans.
 ## Stack
 Next.js (App Router) + TypeScript + Tailwind, deployed on Vercel from GitHub.
 - Script parsing: Gemini (gemini-3.5-flash-lite), server-side only
-- Costar voices: ElevenLabs (free plan, ~10k credits/month), server-side only
+- Costar voices: ElevenLabs (student plan, 131k credits, commercial use OK), server-side only
 - Performance critique: Gemini Flash (audio input), server-side only
 - No database or user accounts yet. Browser localStorage only.
 
