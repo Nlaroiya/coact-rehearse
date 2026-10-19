@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
-import { AUTH_COOKIE, isValidToken } from "@/lib/auth";
+import { AUTH_COOKIE, GUEST_BLOCKED_MESSAGE, sessionRole } from "@/lib/auth";
 import { MAX_TTS_CHARS, speechText } from "@/lib/tts";
 import { isVoiceId, TTS_MODEL } from "@/lib/voices";
 
@@ -17,9 +17,10 @@ const RequestSchema = z.object({
 // POST /api/tts  { text, voiceId, parenthetical? }  →  MP3 audio
 export async function POST(request: NextRequest) {
   // proxy.ts already blocks logged-out requests; this keeps the route safe on its own.
-  if (!(await isValidToken(request.cookies.get(AUTH_COOKIE)?.value))) {
-    return fail("Not logged in.", 401);
-  }
+  const role = await sessionRole(request.cookies.get(AUTH_COOKIE)?.value);
+  if (!role) return fail("Not logged in.", 401);
+  // Demo (guest) logins can't spend API credits.
+  if (role === "guest") return fail(GUEST_BLOCKED_MESSAGE, 403);
 
   const body = await request.json().catch(() => null);
   if (typeof body !== "object" || body === null) {

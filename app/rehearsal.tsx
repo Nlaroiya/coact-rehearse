@@ -17,6 +17,7 @@ import {
   SPEED,
   type RehearsalSettings,
 } from "@/lib/rehearsal-settings";
+import { DEMO_CASTING, DEMO_SCENE_NAME, demoClipUrl } from "@/lib/demo";
 import type { Script } from "@/lib/script-schema";
 import { buildTimingLog, suggestSceneName, takeFilename, type TakeEvent } from "@/lib/take";
 import {
@@ -53,11 +54,12 @@ const DETECTOR_TO_RUN: Record<DetectorEvent, Exclude<RunEvent["type"], "START">>
 };
 
 const CAST_KEY = "scene-partner:cast";
+const DEMO_CAST_KEY = "scene-partner:demo-cast"; // kept separate so a demo never changes my own choices
 type CastChoices = { me: string; casting: Casting };
 
-function loadCast(): CastChoices {
+function loadCast(key: string): CastChoices {
   try {
-    const raw = JSON.parse(localStorage.getItem(CAST_KEY) ?? "null");
+    const raw = JSON.parse(localStorage.getItem(key) ?? "null");
     return { me: typeof raw?.me === "string" ? raw.me : "", casting: raw?.casting ?? {} };
   } catch {
     return { me: "", casting: {} };
@@ -90,6 +92,7 @@ type Props = {
   script: Script;
   pdfName: string | null; // used to suggest a scene name for the take's file name
   onRehearsingChange: (rehearsing: boolean) => void;
+  demo?: boolean; // guest demo mode: fixed voices, bundled audio, no API calls
 };
 
 const SCENE_NAME_KEY = "scene-partner:scene-name";
@@ -115,9 +118,15 @@ function nextTakeNumber(scene: string, role: string): number {
   }
 }
 
-export default function Rehearsal({ script, pdfName, onRehearsingChange }: Props) {
-  const [saved, setSaved] = useState<CastChoices>(loadCast);
-  const { me, casting } = effectiveCast(saved, script.characters);
+export default function Rehearsal({ script, pdfName, onRehearsingChange, demo = false }: Props) {
+  const castKey = demo ? DEMO_CAST_KEY : CAST_KEY;
+  const [saved, setSaved] = useState<CastChoices>(() => loadCast(castKey));
+  const cast = effectiveCast(saved, script.characters);
+  const me = cast.me;
+  // Demo: the voices are fixed, because only those clips were generated.
+  const casting: Casting = demo
+    ? Object.fromEntries(Object.keys(cast.casting).map((name) => [name, DEMO_CASTING[name]]))
+    : cast.casting;
 
   const [jobs, setJobs] = useState<AudioJob[]>([]);
   const [cached, setCached] = useState<Set<string>>(new Set());
@@ -147,7 +156,7 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange }: Props
   const [take, setTake] = useState<Take | null>(null);
   const [sceneName, setSceneName] = useState(() => loadText(SCENE_NAME_KEY));
   const suggestedName = suggestSceneName(pdfName, script.lines);
-  const sceneForFile = sceneName.trim() || suggestedName;
+  const sceneForFile = demo ? DEMO_SCENE_NAME : sceneName.trim() || suggestedName;
 
   // Hands-free: the open mic, its live level, and the calibrated speech threshold.
   const mic = useRef<Mic | null>(null);
@@ -200,11 +209,11 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange }: Props
   // Save casting choices so a refresh keeps them.
   useEffect(() => {
     try {
-      localStorage.setItem(CAST_KEY, JSON.stringify({ me, casting: JSON.parse(castJson) }));
+      localStorage.setItem(castKey, JSON.stringify({ me, casting: JSON.parse(castJson) }));
     } catch {
       // Storage blocked; choices just won't survive a refresh.
     }
-  }, [me, castJson]);
+  }, [me, castJson, castKey]);
 
   // Work out every costar line's cache key, and which of them are already cached.
   useEffect(() => {
@@ -224,6 +233,33 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange }: Props
   const needed = linesNeedingAudio(jobs, cached);
   const neededChars = needed.reduce((sum, job) => sum + job.chars, 0);
   const jobByLine = useMemo(() => new Map(jobs.map((j) => [j.lineIndex, j])), [jobs]);
+
+  // Demo: copy the bundled clips (public/demo/) into the audio cache instead of generating.
+  const neededKeys = needed.map((j) => j.key).join(",");
+  useEffect(() => {
+    if (!demo || !neededKeys) return;
+    let cancelled = false;
+    (async () => {
+      // All at once, then one update, so each clip is downloaded exactly once.
+      const keys = neededKeys.split(",");
+      try {
+        await Promise.all(
+          keys.map(async (key) => {
+            const res = await fetch(demoClipUrl(key));
+            if (!res.ok) throw new Error(`missing ${key}`);
+            await putClip(key, await res.blob());
+          }),
+        );
+      } catch {
+        if (!cancelled) setError("The demo voices couldn't be loaded. Check your connection and refresh the page.");
+        return;
+      }
+      if (!cancelled) setCached((prev) => new Set([...prev, ...keys]));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [demo, neededKeys]);
 
   async function prepare() {
     setError(null);
@@ -578,7 +614,7 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange }: Props
             <select
               aria-label={`Voice for ${name}`}
               value={casting[name]}
-              disabled={generating || rehearsing}
+              disabled={generating || rehearsing || demo}
               onChange={(e) => setSaved({ me, casting: { ...casting, [name]: e.target.value } })}
               className="rounded border border-zinc-300 px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900"
             >
@@ -683,7 +719,7 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange }: Props
               {Math.round(settings.readerVolume * 100)}%
             </span>
           </label>
-        <label className={`flex items-center gap-2 ${settings.record ? "" : "opacity-40"}`}>
+        <label className={`flex items-center gap-2 ${settings.record ? "" : "opacity-40"} ${demo ? "hidden" : ""}`}>
           Scene name
           <input
             value={sceneName}
@@ -734,7 +770,9 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange }: Props
               ? "No costar lines to voice."
               : needed.length === 0
                 ? `All ${jobs.length} costar lines have audio.`
-                : `${needed.length} of ${jobs.length} costar lines need audio · ${neededChars.toLocaleString()} characters (up to ${neededChars.toLocaleString()} credits)`}
+                : demo
+                  ? "Loading the demo voices…"
+                  : `${needed.length} of ${jobs.length} costar lines need audio · ${neededChars.toLocaleString()} characters (up to ${neededChars.toLocaleString()} credits)`}
           </p>
           {generating ? (
             <>
@@ -746,7 +784,7 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange }: Props
               </button>
             </>
           ) : (
-            needed.length > 0 && (
+            needed.length > 0 && !demo && (
               <button
                 onClick={prepare}
                 className="rounded bg-black px-4 py-2 font-medium text-white dark:bg-zinc-50 dark:text-black"

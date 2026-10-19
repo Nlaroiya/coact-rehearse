@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { AUTH_COOKIE, isValidToken } from "@/lib/auth";
+import { AUTH_COOKIE, GUEST_BLOCKED_MESSAGE, sessionRole } from "@/lib/auth";
 import { MAX_CHARS, MAX_PDF_BYTES, MAX_PDF_LABEL } from "@/lib/limits";
 import { parseScript, type ScriptInput } from "@/lib/parse-script";
 import { findUnmatchedLines } from "@/lib/script-schema";
@@ -13,9 +13,10 @@ const fail = (error: string, status: number) => NextResponse.json({ error }, { s
 export async function POST(request: NextRequest) {
   // proxy.ts already blocks logged-out requests; checking again here keeps the
   // route safe even if the proxy's matcher is changed later.
-  if (!(await isValidToken(request.cookies.get(AUTH_COOKIE)?.value))) {
-    return fail("Not logged in.", 401);
-  }
+  const role = await sessionRole(request.cookies.get(AUTH_COOKIE)?.value);
+  if (!role) return fail("Not logged in.", 401);
+  // Demo (guest) logins can't spend API credits.
+  if (role === "guest") return fail(GUEST_BLOCKED_MESSAGE, 403);
 
   const isUpload = request.headers.get("content-type")?.startsWith("multipart/form-data");
   const input = isUpload ? await readPdf(request) : await readText(request);

@@ -1,11 +1,13 @@
 # Next session
 
-## Where things are (Oct 17)
-- Code is on GitHub (`Nlaroiya/scene-partner`, private), latest commit `1202e30`.
+## Where things are (Oct 18)
+- Code is on GitHub (`Nlaroiya/scene-partner`), with a README for sharing. Making the repo
+  public is done in GitHub → Settings → Danger Zone.
 - Live on Vercel: find the link in the Vercel dashboard → scene-partner project → Domains.
   (Not scene-partner.vercel.app, which is someone else's site.)
-- Vercel environment variables set: APP_PASSCODE, GEMINI_API_KEY, ELEVENLABS_API_KEY.
-- Run locally: `npm run dev` → http://localhost:3000. Tests: `npm test` (112 passing).
+- Vercel environment variables: APP_PASSCODE, GEMINI_API_KEY, ELEVENLABS_API_KEY, plus
+  APP_GUEST_PASSCODE for demo mode (add it in Vercel, then redeploy).
+- Run locally: `npm run dev` → http://localhost:3000. Tests: `npm test` (123 passing).
 
 ## What works
 - Passcode gate on every page and API route (blocks everyone if APP_PASSCODE is missing).
@@ -21,6 +23,11 @@
 - Recording: camera + mic at 720p, mirrored preview, unmirrored MP4 recording. The reader is
   picked up from the speakers (Reader volume, default 80%). Playback, Download
   (e.g. study-room_PRIYA_take2_2026-10-16.mp4), Retake (no audio regenerated).
+- Demo mode: logging in with the guest passcode (APP_GUEST_PASSCODE) opens the pre-loaded
+  "Study Room" scene with pre-generated voices in public/demo/ (139 credits, generated once).
+  Guests can rehearse, use hands-free and record, but the server refuses /api/parse and
+  /api/tts for them, so they can't spend credits. Change or remove the variable in Vercel to
+  cut off guest access.
 - For Task 5: each take keeps a small critique audio file (WebM/Opus, mic only) and a line
   timing log (JSON) in memory. Nothing is uploaded yet.
 
