@@ -1,42 +1,48 @@
-What works: The application launches on the internet and the passcode works
-Erros: none encountered so far
-What's next: Paste a side, Gemini turns it into structured lines, you can edit them. It will be done when a real side parses and mistakes are fixable.
-
 # Next session
 
-## Works (Oct 16)
-- Passcode gate, live on Vercel
-- Paste or upload a PDF side → Gemini parses → editable lines, saved on refresh
-- Tests pass: npm test
+## Where things are (Oct 17)
+- Code is on GitHub (`Nlaroiya/scene-partner`, private), latest commit `1202e30`.
+- Live on Vercel: find the link in the Vercel dashboard → scene-partner project → Domains.
+  (Not scene-partner.vercel.app, which is someone else's site.)
+- Vercel environment variables set: APP_PASSCODE, GEMINI_API_KEY, ELEVENLABS_API_KEY.
+- Run locally: `npm run dev` → http://localhost:3000. Tests: `npm test` (112 passing).
 
-## Known issues
-- nothing yet, keep going
+## What works
+- Passcode gate on every page and API route (blocks everyone if APP_PASSCODE is missing).
+- Paste a side or upload a PDF (up to 3MB) → Gemini parses it → editable lines, saved on refresh.
+  Stage directions in parentheses are never read aloud, in screenplay or "NAME: line" format.
+- ElevenLabs costar voices (Eleven v4), cached per line in the browser so a line is never
+  generated twice. "Prepare scene" shows the credits before generating.
+- Rehearse mode: pick your role and costar voices, costar speed, cue pickup (also the pause
+  between two costar lines), 3-2-1 countdown, Stop.
+- Hands-free: the mic notices when your line ends (silence threshold slider); Space, Page Down
+  or Right Arrow always end your line. Adapts to background noise that starts mid-scene.
+  Live mic meter with the threshold marker.
+- Recording: camera + mic at 720p, mirrored preview, unmirrored MP4 recording. The reader is
+  picked up from the speakers (Reader volume, default 80%). Playback, Download
+  (e.g. study-room_PRIYA_take2_2026-10-16.mp4), Retake (no audio regenerated).
+- For Task 5: each take keeps a small critique audio file (WebM/Opus, mic only) and a line
+  timing log (JSON) in memory. Nothing is uploaded yet.
 
-##  ElevenLabs costar voices
-- Voices I picked(All on Eleven V4 model): Young male voice: (Name: Kyle, ID: GhkQkxbimoIykF4iGYqh), Young female voice: (Name: Caroline Braden, ID: yK2Ny0mq8WplixhD1td3), 
-Middle-aged male voice:(Name: Chris Heyez, ID: 6rr4jpS124uCLNtgVdAk)
-Middle-aged female voice: (Name: Stephanie, ID: oT5lntmfa8t37GiBBd3k)
-- Generate audio for the other characters' lines, cache it, play the scene in order
-121 000 eleven labs credits per month for three months!
+## Voices (all Eleven v4)
+- Young male: Kyle (GhkQkxbimoIykF4iGYqh)
+- Young female: Caroline Braden (yK2Ny0mq8WplixhD1td3)
+- Middle-aged male: Chris Heyez (6rr4jpS124uCLNtgVdAk)
+- Middle-aged female: Stephanie (oT5lntmfa8t37GiBBd3k)
+- Credits: 121,000 ElevenLabs credits per month for three months. The study-room scene as
+  PRIYA costs about 80 credits to prepare. The live site and localhost each have their own
+  audio cache, so each prepares a scene once.
 
-# Next session
+## Known issues / notes
+- Fixed: background noise starting mid-scene (e.g. a sink) kept lines from ending. The
+  threshold now follows the room's quietest moments and never rises above your own voice;
+  a noise spike has to last over 100ms to count as talking.
+- Removed Headphones mode (not needed). It's in Git history if it's ever wanted back.
+- Chrome sometimes picks the iPhone mic (Continuity). Choose the mic and camera in Chrome's
+  site settings (icon left of the address bar).
+- A development-only diagnostic logs the mic levels once per second to
+  `.next/dev/logs/next-development.log` (kept on purpose; it doesn't run on the live site).
 
-## Works (Oct 17)
-- Passcode gate, live on Vercel
-- Paste or upload a PDF side → Gemini parses → editable lines, saved on refresh
-- Tests pass: npm test
-- Eleven Labs API 
-
-## Known issues
-- nothing yet, keep going
-
-## Next: Task 4 — ElevenLabs costar voices
-- Voices I picked(All on Eleven V4 model): Young male voice: (Name: Kyle, ID: GhkQkxbimoIykF4iGYqh), Young female voice: (Name: Caroline Braden, ID: yK2Ny0mq8WplixhD1td3), 
-Middle-aged male voice:(Name: Chris Heyez, ID: 6rr4jpS124uCLNtgVdAk)
-Middle-aged female voice: (Name: Stephanie, ID: oT5lntmfa8t37GiBBd3k)
-- Generate audio for the other characters' lines, cache it, play the scene in order
-121 000 eleven labs credits per month for three months!
--Free hand mode and recording
-
-## Knows issues
-- found bug where voice would not play because of introduction of additional background noise mid scene. Prompted Clade code to fix and workaround was built using a continous check. A short spike does not count toward the adjusted total, it has to last longer than 100ms
+## Next: Task 5 — Performance notes
+- Send the take's critique audio + line timing log (+ a notes textbox for context) to Gemini
+  Flash, server-side, and show notes on how to improve. Validate the response with zod.
