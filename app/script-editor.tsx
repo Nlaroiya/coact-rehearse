@@ -5,6 +5,7 @@ import { MAX_CHARS, MAX_PDF_BYTES, MAX_PDF_LABEL } from "@/lib/limits";
 import { ScriptSchema, type Line, type Script } from "@/lib/script-schema";
 import Rehearsal from "./rehearsal";
 
+// Old name kept on purpose for storage compatibility: renaming would lose saved data and cached audio.
 const STORAGE_KEY = "scene-partner:editor";
 
 const formatMB = (bytes: number) =>

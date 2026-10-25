@@ -53,6 +53,7 @@ const DETECTOR_TO_RUN: Record<DetectorEvent, Exclude<RunEvent["type"], "START">>
   waiting: "NO_SPEECH_YET",
 };
 
+// Old name kept on purpose for storage compatibility: renaming would lose saved data and cached audio.
 const CAST_KEY = "scene-partner:cast";
 const DEMO_CAST_KEY = "scene-partner:demo-cast"; // kept separate so a demo never changes my own choices
 type CastChoices = { me: string; casting: Casting };
@@ -66,6 +67,7 @@ function loadCast(key: string): CastChoices {
   }
 }
 
+// Old name kept on purpose for storage compatibility: renaming would lose saved data and cached audio.
 const SETTINGS_KEY = "scene-partner:rehearsal-settings";
 
 function loadSettings(): RehearsalSettings {
@@ -95,6 +97,7 @@ type Props = {
   demo?: boolean; // guest demo mode: fixed voices, bundled audio, no API calls
 };
 
+// Old name kept on purpose for storage compatibility: renaming would lose saved data and cached audio.
 const SCENE_NAME_KEY = "scene-partner:scene-name";
 const TAKES_KEY = "scene-partner:take-numbers"; // { "study-room|PRIYA": 2 }
 

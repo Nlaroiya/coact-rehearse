@@ -1,4 +1,4 @@
-# Scene Partner
+# Coact Rehearse
 
 Web app for actors: upload an audition side, pick your role, an AI voice
 reads the other characters, you perform, and AI gives performance notes.
@@ -20,9 +20,10 @@ Next.js (App Router) + TypeScript + Tailwind, deployed on Vercel from GitHub.
 Line order in the array = scene order. Directions are never spoken aloud.
 
 ## Rules
-- Default audio mode is Speakers (self-tape, no headphones): mic processing
+- Audio is Speakers only (self-tape, no headphones): mic processing
   (echo cancellation, noise suppression, auto-gain) OFF, no digital costar
-  mix. Headphones mode is optional and uses the digital mixer.
+  mix; the mic picks up the reader from the speakers (Reader volume).
+  Headphones mode was removed (Oct 17); it's in git history if needed.
 - API keys live only in .env.local and Vercel env vars. Never in browser
   code, never committed.
 - Every page AND every /api route sits behind the passcode gate. If

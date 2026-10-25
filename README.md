@@ -1,4 +1,4 @@
-# Scene Partner
+# Coact Rehearse
 
 An AI reader for actors' self-tapes. Paste in your audition side, pick your role, and an AI
 voice reads the other characters' lines while you perform and record.
@@ -10,7 +10,7 @@ casting. But a scene has other characters, and someone has to read their lines o
 have something to react to. When the deadline is tonight and nobody is free, you end up
 performing to silence, and the tape suffers.
 
-Actor friends and castmates have complained about this for years. Scene Partner is the reader
+Actor friends and castmates have complained about this for years. Coact Rehearse is the reader
 who's always available.
 
 ## What works today
@@ -92,8 +92,8 @@ API keys live only on the server (environment variables) and never reach the bro
 You'll need Node.js 20 or newer, a Gemini API key, and an ElevenLabs API key.
 
 ```bash
-git clone https://github.com/Nlaroiya/scene-partner.git
-cd scene-partner
+git clone https://github.com/Nlaroiya/coact-rehearse.git
+cd coact-rehearse
 npm install
 ```
 

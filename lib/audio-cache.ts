@@ -1,5 +1,6 @@
 // Browser-only: stores generated audio clips in IndexedDB, keyed by cacheKey().
 // IndexedDB is a database built into the browser that can hold files, unlike localStorage.
+// Old name kept on purpose for storage compatibility: renaming would lose saved data and cached audio.
 const DB_NAME = "scene-partner";
 const STORE = "audio";
 

@@ -1,9 +1,10 @@
 # Next session
 
 ## Where things are (Oct 18)
-- Code is on GitHub (`Nlaroiya/scene-partner`), with a README for sharing. Making the repo
+- Code is on GitHub (`Nlaroiya/coact-rehearse`, renamed from scene-partner), with a README for sharing. Making the repo
   public is done in GitHub → Settings → Danger Zone.
-- Live on Vercel: find the link in the Vercel dashboard → scene-partner project → Domains.
+- Live on Vercel: find the link in the Vercel dashboard → the project (named scene-partner
+  unless you renamed it there too) → Domains.
   (Not scene-partner.vercel.app, which is someone else's site.)
 - Vercel environment variables: APP_PASSCODE, GEMINI_API_KEY, ELEVENLABS_API_KEY, plus
   APP_GUEST_PASSCODE for demo mode (add it in Vercel, then redeploy).

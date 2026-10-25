@@ -7,7 +7,7 @@
 //    spends API credits (no parsing, no new voice audio).
 // If APP_PASSCODE is missing, everyone is locked out, guests included.
 
-export const AUTH_COOKIE = "scene_partner_auth";
+export const AUTH_COOKIE = "coact_rehearse_auth";
 
 export type Role = "owner" | "guest";
 
@@ -44,7 +44,7 @@ async function sign(passcode: string, label: string): Promise<string> {
 export async function expectedToken(role: Role = "owner"): Promise<string | null> {
   const passcode = role === "owner" ? getPasscode() : getGuestPasscode();
   if (!passcode) return null;
-  return sign(passcode, role === "owner" ? "scene-partner-session" : "scene-partner-guest");
+  return sign(passcode, role === "owner" ? "coact-rehearse-session" : "coact-rehearse-guest");
 }
 
 // Compares two strings without leaking, through timing, how many characters matched.
