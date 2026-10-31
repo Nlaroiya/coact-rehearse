@@ -9,7 +9,7 @@
 - Vercel environment variables: APP_PASSCODE, GEMINI_API_KEY, ELEVENLABS_API_KEY, plus
   APP_GUEST_PASSCODE for demo mode and APP_PUBLIC_DEMO=on for the public /try link (add in
   Vercel, then redeploy).
-- Run locally: `npm run dev` → http://localhost:3000. Tests: `npm test` (127 passing).
+- Run locally: `npm run dev` → http://localhost:3000. Tests: `npm test` (135 passing).
 
 ## What works
 - Passcode gate on every page and API route (blocks everyone if APP_PASSCODE is missing).

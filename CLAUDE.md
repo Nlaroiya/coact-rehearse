@@ -27,9 +27,10 @@ Line order in the array = scene order. Directions are never spoken aloud.
 - API keys live only in .env.local and Vercel env vars. Never in browser
   code, never committed.
 - Every page AND every /api route sits behind the passcode gate. If
-  APP_PASSCODE is missing, block everyone. One exception: /try (the public
-  demo link) logs visitors in as a guest when APP_PUBLIC_DEMO=on. Guests can
-  never call the paid APIs (/api/parse, /api/tts).
+  APP_PASSCODE is missing, block everyone. One exception: when
+  APP_PUBLIC_DEMO=on, logged-out visitors to / or /try are logged in as a
+  guest (demo mode). Guests can never call the paid APIs (/api/parse,
+  /api/tts). Gate rules live in lib/gate.ts.
 - Never generate the same ElevenLabs line twice: cache audio per line.
 - Never commit copyrighted scripts or real audition sides. Only files in
   samples/ (original or public domain) go in the repo.
@@ -40,8 +41,10 @@ Line order in the array = scene order. Directions are never spoken aloud.
 IN: parse sides (text + PDF), pick role, ElevenLabs costar voices,
 hands-free run with space-bar override, record video + mixed reader audio,
 export the take, Gemini audio critique, one notes textbox for context.
+Must work on iPhone (Safari) as well as desktop: most self-tapes are shot on
+phones.
 OUT (don't build unless asked): accounts, user profiles, video analysis,
-podcast mode, voice cloning, mobile layout, AI voice suggestions.
+podcast mode, voice cloning, AI voice suggestions.
 
 ## Commands
 npm run dev — local app at localhost:3000

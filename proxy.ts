@@ -1,24 +1,20 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { AUTH_COOKIE, isValidToken } from "@/lib/auth";
+import { AUTH_COOKIE, publicDemoEnabled, sessionRole } from "@/lib/auth";
+import { gateDecision } from "@/lib/gate";
 
 // Next.js 16 runs this before every matching request (it replaces middleware.ts).
+// The rules for who may open what live in lib/gate.ts.
 export async function proxy(request: NextRequest) {
-  const isLoginPage = request.nextUrl.pathname === "/login";
-  const loggedIn = await isValidToken(request.cookies.get(AUTH_COOKIE)?.value);
+  const role = await sessionRole(request.cookies.get(AUTH_COOKIE)?.value);
+  const decision = gateDecision(request.nextUrl.pathname, role, publicDemoEnabled());
 
-  if (!loggedIn && request.nextUrl.pathname.startsWith("/api/")) {
+  if (decision.action === "unauthorized") {
     // Code calling an API expects JSON, not a redirect to an HTML page.
     return NextResponse.json({ error: "Not logged in." }, { status: 401 });
   }
-  // /try is the one other page open without a login: the public demo link. It decides for
-  // itself whether to log the visitor in as a guest (see app/try/route.ts).
-  const isDemoLink = request.nextUrl.pathname === "/try";
-  if (!loggedIn && !isLoginPage && !isDemoLink) {
-    return NextResponse.redirect(new URL("/login", request.url));
-  }
-  if (loggedIn && isLoginPage) {
-    return NextResponse.redirect(new URL("/", request.url));
+  if (decision.action === "redirect") {
+    return NextResponse.redirect(new URL(decision.to, request.url));
   }
   return NextResponse.next();
 }
