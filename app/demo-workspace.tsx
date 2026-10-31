@@ -19,7 +19,7 @@ export default function DemoWorkspace() {
         <p className="mt-1">
           This short scene, &ldquo;Study Room&rdquo;, is already loaded with AI voices. Pick your role, press{" "}
           <strong>Start</strong>, and read your lines out loud: the AI reads the other part and moves on when you
-          finish (or press Space). Recordings stay on your device.
+          finish (or tap Next line / press Space). Recordings stay on your device.
         </p>
       </div>
 

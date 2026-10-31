@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore } from "react";
 import { cachedKeys, getClip, putClip } from "@/lib/audio-cache";
 import { MIC_MESSAGES, MicError, openMic, type Mic, type MicProblem } from "@/lib/mic";
+import { unlockAudio } from "@/lib/unlock-audio";
 import { startRecorders, type Recorders } from "@/lib/recording";
 import { ARM_DELAY_MS, IDLE, MY_TURN, reduce, sceneStops, type RunEvent } from "@/lib/rehearsal-machine";
 import {
@@ -121,7 +122,21 @@ function nextTakeNumber(scene: string, role: string): number {
   }
 }
 
+// Is this a phone held upright? (Touch screen in portrait.) Updates when it's turned.
+const PORTRAIT_PHONE = "(pointer: coarse) and (orientation: portrait)";
+function subscribePortrait(onChange: () => void) {
+  const query = window.matchMedia(PORTRAIT_PHONE);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+const isPortraitPhone = () => window.matchMedia(PORTRAIT_PHONE).matches;
+// Any touch screen (phone or tablet, either way up): no space bar, so we say "tap" instead.
+const isTouchScreen = () => window.matchMedia("(pointer: coarse)").matches;
+const noSubscribe = () => () => {};
+
 export default function Rehearsal({ script, pdfName, onRehearsingChange, demo = false }: Props) {
+  const portraitPhone = useSyncExternalStore(subscribePortrait, isPortraitPhone, () => false);
+  const touchScreen = useSyncExternalStore(noSubscribe, isTouchScreen, () => false);
   const castKey = demo ? DEMO_CAST_KEY : CAST_KEY;
   const [saved, setSaved] = useState<CastChoices>(() => loadCast(castKey));
   const cast = effectiveCast(saved, script.characters);
@@ -146,6 +161,9 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange, demo = 
   const silenceRef = useRef(settings.silence);
   const settingsRef = useRef(settings);
   const playing = useRef<HTMLAudioElement | null>(null);
+  // One audio player for the whole scene, unlocked during the Start tap (needed on iPhones).
+  const costarPlayer = useRef<HTMLAudioElement | null>(null);
+  const wakeLock = useRef<WakeLockSentinel | null>(null); // keeps the screen on during a take
 
   // Recording a take: the tape's audio mix, the two recorders, and what happened when.
   const handsFreeRun = useRef(false); // is this run listening for my lines?
@@ -298,10 +316,21 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange, demo = 
     setError(null);
     setMicProblem(null);
     discardTake();
-    if (handsFree || record) {
+    // iPhones only allow audio started by a tap, so this must all happen right now, before the
+    // first `await`: unlock the costar player, and create the mic's AudioContext.
+    costarPlayer.current ??= new Audio();
+    unlockAudio(costarPlayer.current);
+    const context = handsFree || record ? new AudioContext() : null;
+    void navigator.wakeLock?.request("screen").then(
+      (lock) => (wakeLock.current = lock),
+      () => {}, // not supported or not allowed: the take still works
+    );
+    if (context) {
       try {
-        mic.current = await openMic({ camera: record }); // the browser asks for permission here
+        mic.current = await openMic({ camera: record, context }); // the browser asks for permission here
       } catch (err) {
+        void context.close();
+        void wakeLock.current?.release();
         setMicProblem(err instanceof MicError ? err.problem : "other");
         return;
       }
@@ -379,6 +408,8 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange, demo = 
   // then release the camera and mic. Also if the page closes.
   useEffect(() => {
     if (rehearsing) return;
+    void wakeLock.current?.release();
+    wakeLock.current = null;
     const m = mic.current;
     const rec = recorders.current;
     mic.current = null;
@@ -518,13 +549,19 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange, demo = 
         return;
       }
       url = URL.createObjectURL(clip);
-      audio = new Audio(url);
+      // Reuse the player unlocked during the Start tap (a new one would be blocked on iPhones).
+      audio = costarPlayer.current ?? (costarPlayer.current = new Audio());
+      audio.src = url;
       audio.preservesPitch = true; // faster or slower, but not higher or lower
+      audio.defaultPlaybackRate = speedRef.current; // set after src, which resets the rate
       audio.playbackRate = speedRef.current;
       audio.volume = settingsRef.current.readerVolume;
       const lineIndex = position;
       const speaker = script.lines[position].speaker ?? "";
-      audio.addEventListener("playing", () => takeEvents.current.push({ t: performance.now(), kind: "costarStart", lineIndex, speaker }), { once: true });
+      audio.onplaying = () => {
+        audio!.onplaying = null; // once per clip
+        takeEvents.current.push({ t: performance.now(), kind: "costarStart", lineIndex, speaker });
+      };
       audio.onended = () => {
         takeEvents.current.push({ t: performance.now(), kind: "costarEnd", lineIndex });
         dispatch({ type: "CLIP_ENDED" });
@@ -534,7 +571,11 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange, demo = 
     })();
     return () => {
       cancelled = true;
-      audio?.pause();
+      if (audio) {
+        audio.pause();
+        audio.onplaying = null;
+        audio.onended = null;
+      }
       if (playing.current === audio) playing.current = null;
       if (url) URL.revokeObjectURL(url);
     };
@@ -587,10 +628,11 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange, demo = 
     }
     if (run.phase === "pickupPause") return `${current?.speaker}…`;
     if (run.phase === "costarPlaying") return `${current?.speaker} is speaking…`;
-    if (!micOn) return "Your line. Press Space or Next when you're done.";
-    if (run.waiting) return "Waiting for you... (Space ends your line)";
+    const ends = touchScreen ? "tap Next line" : "Space"; // phones have no space bar
+    if (!micOn) return touchScreen ? "Your line. Tap Next line when you're done." : "Your line. Press Space or Next when you're done.";
+    if (run.waiting) return `Waiting for you... (${ends} ends your line)`;
     if (run.phase === "listening") return "Your line. Listening…";
-    return "Your line. Hearing you… (Space ends your line)";
+    return `Your line. Hearing you… (${ends} ends your line)`;
   }
 
   return (
@@ -743,7 +785,12 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange, demo = 
 
       {!rehearsing && (
         <p data-testid="speakers-tip" className="text-sm text-zinc-600 dark:text-zinc-400">
-          Tip: Keep the reader quieter than your voice. Laptop volume around 50%.
+          Tip: Keep the reader quieter than your voice. Device volume around 50%.
+        </p>
+      )}
+      {settings.record && portraitPhone && run.phase !== "costarPlaying" && !myTurn && (
+        <p data-testid="landscape-tip" className="rounded bg-sky-50 p-3 text-sm text-sky-900 dark:bg-sky-950 dark:text-sky-100">
+          Turn your phone sideways for a landscape (horizontal) self-tape. Casting usually expects it.
         </p>
       )}
 
@@ -856,7 +903,23 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange, demo = 
               </span>
             </div>
           )}
-          <ol className="flex flex-col gap-2">
+          {/* Touch screens (either way up): a big Next button at the bottom, easy to tap off-camera. */}
+          <div
+            data-testid="phone-next-bar"
+            className="fixed inset-x-0 bottom-0 z-30 hidden border-t border-zinc-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur pointer-coarse:block dark:border-zinc-800 dark:bg-black/95"
+          >
+            <button
+              onClick={(e) => {
+                e.currentTarget.blur();
+                endMyLineByKey();
+              }}
+              disabled={!myTurn}
+              className="w-full rounded-lg bg-black py-4 text-lg font-semibold text-white disabled:opacity-30 dark:bg-zinc-50 dark:text-black"
+            >
+              {myTurn ? "Next line" : run.phase === "countdown" ? `Starting in ${countdown}…` : `${current?.speaker ?? ""} is speaking…`}
+            </button>
+          </div>
+          <ol className="flex flex-col gap-2 pointer-coarse:pb-24">
             {script.lines.map((line, i) => (
               <li
                 key={i}

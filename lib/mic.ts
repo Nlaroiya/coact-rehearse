@@ -25,7 +25,9 @@ export type Mic = {
   describe: () => string; // diagnostics: which mic, and is audio processing running
 };
 
-export async function openMic({ camera }: { camera: boolean }): Promise<Mic> {
+// `context` must be created during the Start tap (iPhones keep an AudioContext made later
+// "asleep", so the mic would read silence). The Mic takes ownership and closes it.
+export async function openMic({ camera, context }: { camera: boolean; context: AudioContext }): Promise<Mic> {
   if (!navigator.mediaDevices?.getUserMedia) throw new MicError("unsupported");
 
   let stream: MediaStream;
@@ -50,7 +52,6 @@ export async function openMic({ camera }: { camera: boolean }): Promise<Mic> {
 
   // An AnalyserNode lets us read the raw mic samples. Nothing here is connected to the
   // speakers, so you never hear yourself.
-  const context = new AudioContext();
   await context.resume();
   const analyser = context.createAnalyser();
   analyser.fftSize = 2048; // ~43ms of audio at 48kHz: about one 50ms check's worth
