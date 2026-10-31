@@ -7,6 +7,7 @@ import { AUTH_COOKIE, AUTH_COOKIE_OPTIONS, expectedToken, publicDemoEnabled, ses
 // APP_PUBLIC_DEMO=on; otherwise it just shows the login page.
 export async function GET(request: NextRequest) {
   const home = new URL("/", request.url);
+  home.search = request.nextUrl.search; // keep options like ?debug
 
   // Already logged in (as the owner or a guest): never replace that login.
   if (await sessionRole(request.cookies.get(AUTH_COOKIE)?.value)) {

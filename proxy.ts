@@ -14,7 +14,10 @@ export async function proxy(request: NextRequest) {
     return NextResponse.json({ error: "Not logged in." }, { status: 401 });
   }
   if (decision.action === "redirect") {
-    return NextResponse.redirect(new URL(decision.to, request.url));
+    const target = new URL(decision.to, request.url);
+    // Opening the demo from the home page keeps options like ?debug.
+    if (decision.to === "/try") target.search = request.nextUrl.search;
+    return NextResponse.redirect(target);
   }
   return NextResponse.next();
 }

@@ -59,9 +59,17 @@ export async function openMic({ camera, context }: { camera: boolean; context: A
   source.connect(analyser);
   const samples = new Float32Array(analyser.fftSize);
 
+  // iPhones pause ("suspend" or "interrupt") the AudioContext, e.g. when another sound plays.
+  // A paused context reads pure silence, so wake it up whenever that happens.
+  const wake = () => {
+    if (context.state !== "running" && context.state !== "closed") void context.resume().catch(() => {});
+  };
+  context.onstatechange = wake;
+
   return {
     stream,
     level: () => {
+      wake(); // cheap when it's already running
       analyser.getFloatTimeDomainData(samples);
       return levelDb(samples);
     },

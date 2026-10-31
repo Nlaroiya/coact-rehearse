@@ -41,8 +41,11 @@ who's always available.
 **[Try the live demo →](https://coact-rehearse.vercel.app/try)** No sign-up or passcode needed.
 
 The demo is a short original two-hander, "Study Room", with the AI voices already loaded. Pick
-PRIYA or MARCUS, press **Start**, allow the camera and mic, and read your lines out loud. Use
-Chrome, Edge or Safari on a laptop or desktop. Your recording stays on your device.
+PRIYA or MARCUS, press **Start**, allow the camera and mic, and read your lines out loud. It
+works in Safari on iPhone (turn the phone sideways before you start) and in Chrome, Edge or
+Safari on a computer. Your recording stays on your device.
+
+Want to use it with your own audition sides? [Get in touch on LinkedIn](https://www.linkedin.com/in/neellaroiya).
 
 ## Tech stack
 

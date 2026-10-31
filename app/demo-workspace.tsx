@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
-import { DEMO_SCRIPT } from "@/lib/demo";
+import { CONTACT_URL, DEMO_SCRIPT } from "@/lib/demo";
 import Rehearsal from "./rehearsal";
 
 // Demo mode: the study-room scene, already parsed, with pre-generated voices. Nothing here
@@ -20,6 +20,19 @@ export default function DemoWorkspace() {
           This short scene, &ldquo;Study Room&rdquo;, is already loaded with AI voices. Pick your role, press{" "}
           <strong>Start</strong>, and read your lines out loud: the AI reads the other part and moves on when you
           finish (or tap Next line / press Space). Recordings stay on your device.
+        </p>
+        <p className="mt-2">
+          Want to use Coact Rehearse with your own audition sides?{" "}
+          <a
+            href={CONTACT_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="contact-link"
+            className="font-medium underline underline-offset-2"
+          >
+            Get in touch on LinkedIn
+          </a>
+          .
         </p>
       </div>
 

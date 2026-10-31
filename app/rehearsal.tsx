@@ -133,6 +133,8 @@ const isPortraitPhone = () => window.matchMedia(PORTRAIT_PHONE).matches;
 // Any touch screen (phone or tablet, either way up): no space bar, so we say "tap" instead.
 const isTouchScreen = () => window.matchMedia("(pointer: coarse)").matches;
 const noSubscribe = () => () => {};
+// Add ?debug to the address to see what the mic hears (for testing on a real phone).
+const isDebug = () => new URLSearchParams(window.location.search).has("debug");
 
 export default function Rehearsal({ script, pdfName, onRehearsingChange, demo = false }: Props) {
   const portraitPhone = useSyncExternalStore(subscribePortrait, isPortraitPhone, () => false);
@@ -183,6 +185,10 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange, demo = 
   const mic = useRef<Mic | null>(null);
   const [micProblem, setMicProblem] = useState<MicProblem | null>(null);
   const [micOn, setMicOn] = useState(false); // is this run hands-free? (for display)
+  const debug = useSyncExternalStore(noSubscribe, isDebug, () => false);
+  const [debugText, setDebugText] = useState("");
+  // Phone held upright when Start is tapped: a recording's shape is fixed when it starts.
+  const [askToTurn, setAskToTurn] = useState(false);
   const [level, setLevel] = useState(SILENT_DB);
   const [threshold, setThreshold] = useState<number | null>(null);
   const thresholdRef = useRef<number | null>(null); // what the detector uses right now
@@ -321,6 +327,7 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange, demo = 
     costarPlayer.current ??= new Audio();
     unlockAudio(costarPlayer.current);
     const context = handsFree || record ? new AudioContext() : null;
+    void context?.resume(); // must be switched on during the tap, or iPhones keep it silent
     void navigator.wakeLock?.request("screen").then(
       (lock) => (wakeLock.current = lock),
       () => {}, // not supported or not allowed: the take still works
@@ -351,6 +358,18 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange, demo = 
     countdownStarted.current = performance.now();
     setCountdown(3);
     dispatch({ type: "START", stops: sceneStops(script.lines, me) });
+  }
+
+  // Start (and Retake): on a phone held upright, ask to turn it sideways first, since an
+  // iPhone fixes the recording's shape when it starts. Rotating then tapping Start is a fresh
+  // tap, which iPhones need to allow the audio.
+  function requestStart() {
+    if (settings.record && portraitPhone) {
+      setAskToTurn(true);
+      return;
+    }
+    setAskToTurn(false);
+    void startRehearsal();
   }
 
   // Mic denied: turn hands-free off and rehearse with the keyboard instead.
@@ -477,6 +496,12 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange, demo = 
       if (!mic.current) return;
       const db = mic.current.level();
       setLevel(db);
+      if (debug) {
+        const r0 = runRef.current;
+        setDebugText(
+          `level ${db.toFixed(1)} dB · threshold ${thresholdRef.current?.toFixed(1) ?? "-"} · ${r0.phase}${r0.armed ? " (armed)" : ""} · detector ${detector.current?.state.phase ?? "-"}\n${mic.current.describe()}`,
+        );
+      }
       const r = runRef.current;
       if (process.env.NODE_ENV === "development") {
         diag.levels.push(db);
@@ -524,7 +549,7 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange, demo = 
       }
     }, FRAME_MS);
     return () => clearInterval(tick);
-  }, [rehearsing]);
+  }, [rehearsing, debug]);
 
   // pickupPause: the beat between my line and the costar's cue.
   useEffect(() => {
@@ -794,6 +819,28 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange, demo = 
         </p>
       )}
 
+      {askToTurn && !rehearsing && (
+        <div data-testid="turn-prompt" className="flex flex-col gap-3 rounded border border-sky-300 bg-sky-50 p-3 text-sm text-sky-950 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-100">
+          <p>
+            <strong>{portraitPhone ? "Turn your phone sideways first," : "Great, now tap Start."}</strong>{" "}
+            {portraitPhone
+              ? "then tap Start. The tape's shape is set when recording begins, so turning during the take keeps it upright."
+              : "Your tape will be landscape."}
+          </p>
+          {portraitPhone && (
+            <button
+              onClick={() => {
+                setAskToTurn(false);
+                void startRehearsal();
+              }}
+              className="self-start rounded border border-sky-400 px-3 py-1.5 font-medium"
+            >
+              Record upright anyway
+            </button>
+          )}
+        </div>
+      )}
+
       {micProblem && (
         <div role="alert" className="flex flex-wrap items-center gap-3 rounded bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
           <span data-testid="mic-problem">{MIC_MESSAGES[micProblem]}</span>
@@ -810,7 +857,7 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange, demo = 
       )}
 
       {take && !rehearsing && (
-        <TakeReview take={take} onRetake={() => void startRehearsal()} onDiscard={discardTake} />
+        <TakeReview take={take} onRetake={requestStart} onDiscard={discardTake} />
       )}
 
       {!rehearsing && !take && (
@@ -844,7 +891,7 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange, demo = 
             )
           )}
           <button
-            onClick={() => void startRehearsal()}
+            onClick={requestStart}
             disabled={generating || needed.length > 0}
             className="rounded bg-emerald-600 px-4 py-2 font-medium text-white disabled:opacity-40"
           >
@@ -882,6 +929,11 @@ export default function Rehearsal({ script, pdfName, onRehearsingChange, demo = 
             {micOn && (
               <div className="basis-full">
                 <MicMeter level={level} threshold={threshold} active={myTurn && run.armed && threshold !== null} />
+                {debug && (
+                  <pre data-testid="mic-debug" className="mt-1 whitespace-pre-wrap break-all text-[11px] leading-tight text-zinc-500">
+                    {debugText || "debug: waiting for the mic…"}
+                  </pre>
+                )}
               </div>
             )}
           </div>

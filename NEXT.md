@@ -32,6 +32,12 @@
   cut off guest access.
 - Public demo link: `<live address>/try` opens demo mode with no passcode (for the résumé),
   only while APP_PUBLIC_DEMO=on in Vercel. Remove that variable to switch the link off.
+- iPhone: tested on Neel's iPhone (Safari). MARCUS plays from the bottom speaker, Next line
+  bar works sideways, download works. Fixed Oct 31: hands-free never heard lines (iPhone pauses
+  the AudioContext; it's now switched on in the Start tap and woken up when paused), and tapes
+  stayed portrait when turned mid-take (Start now asks to turn sideways first).
+  Add `?debug` to the address to see what the mic hears on screen.
+- Demo banner + README link to LinkedIn for people who want to use their own sides.
 - For Task 5: each take keeps a small critique audio file (WebM/Opus, mic only) and a line
   timing log (JSON) in memory. Nothing is uploaded yet.
 

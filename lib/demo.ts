@@ -11,3 +11,6 @@ export const DEMO_SCENE_NAME = "study-room";
 export const DEMO_CASTING: Casting = { MARCUS: "GhkQkxbimoIykF4iGYqh", PRIYA: "yK2Ny0mq8WplixhD1td3" };
 
 export const demoClipUrl = (key: string) => `/demo/${key}.mp3`;
+
+// Where demo visitors can ask about using it with their own sides.
+export const CONTACT_URL = "https://www.linkedin.com/in/neellaroiya";
