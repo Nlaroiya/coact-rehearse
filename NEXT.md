@@ -7,8 +7,9 @@
   unless you renamed it there too) → Domains.
   (Not scene-partner.vercel.app, which is someone else's site.)
 - Vercel environment variables: APP_PASSCODE, GEMINI_API_KEY, ELEVENLABS_API_KEY, plus
-  APP_GUEST_PASSCODE for demo mode (add it in Vercel, then redeploy).
-- Run locally: `npm run dev` → http://localhost:3000. Tests: `npm test` (123 passing).
+  APP_GUEST_PASSCODE for demo mode and APP_PUBLIC_DEMO=on for the public /try link (add in
+  Vercel, then redeploy).
+- Run locally: `npm run dev` → http://localhost:3000. Tests: `npm test` (127 passing).
 
 ## What works
 - Passcode gate on every page and API route (blocks everyone if APP_PASSCODE is missing).
@@ -29,6 +30,8 @@
   Guests can rehearse, use hands-free and record, but the server refuses /api/parse and
   /api/tts for them, so they can't spend credits. Change or remove the variable in Vercel to
   cut off guest access.
+- Public demo link: `<live address>/try` opens demo mode with no passcode (for the résumé),
+  only while APP_PUBLIC_DEMO=on in Vercel. Remove that variable to switch the link off.
 - For Task 5: each take keeps a small critique audio file (WebM/Opus, mic only) and a line
   timing log (JSON) in memory. Nothing is uploaded yet.
 

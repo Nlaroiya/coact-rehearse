@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { AUTH_COOKIE, expectedToken, getPasscode, roleForPasscode } from "@/lib/auth";
+import { AUTH_COOKIE, AUTH_COOKIE_OPTIONS, expectedToken, getPasscode, roleForPasscode } from "@/lib/auth";
 
 export type LoginState = { error?: string };
 
@@ -23,13 +23,7 @@ export async function login(
   }
 
   const cookieStore = await cookies();
-  cookieStore.set(AUTH_COOKIE, (await expectedToken(role))!, {
-    httpOnly: true, // JavaScript in the browser can't read it
-    secure: process.env.NODE_ENV === "production", // HTTPS-only once deployed
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 30, // 30 days
-  });
+  cookieStore.set(AUTH_COOKIE, (await expectedToken(role))!, AUTH_COOKIE_OPTIONS);
 
   redirect("/");
 }

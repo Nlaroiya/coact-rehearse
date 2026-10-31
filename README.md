@@ -38,9 +38,11 @@ who's always available.
 
 ## Try it
 
-A live demo is deployed on Vercel. It's behind a passcode, so ask me for guest access. The demo
-scene is a short original two-hander, "Study Room". Pick PRIYA or MARCUS, press **Start**, allow
-the camera and mic, and read your lines out loud.
+**[Try the live demo →](https://coact-rehearse.vercel.app/try)** No sign-up or passcode needed.
+
+The demo is a short original two-hander, "Study Room", with the AI voices already loaded. Pick
+PRIYA or MARCUS, press **Start**, allow the camera and mic, and read your lines out loud. Use
+Chrome, Edge or Safari on a laptop or desktop. Your recording stays on your device.
 
 ## Tech stack
 
@@ -66,8 +68,8 @@ Rehearse + record (all in the browser: mic, camera, turn-taking, recording)
 - **Passcode gate** ([proxy.ts](proxy.ts), [lib/auth.ts](lib/auth.ts)). Every page and API route
   requires a login. The login cookie is `httpOnly` and holds a signature derived from the
   passcode, never the passcode itself. If the passcode isn't configured, everyone is locked out.
-  The guest passcode gives a "guest" login that the API routes refuse, so demo users can't spend
-  credits.
+  The guest passcode, or the public `/try` link, gives a "guest" login that the API routes
+  refuse, so demo users can't spend credits.
 - **Parse route** ([app/api/parse/route.ts](app/api/parse/route.ts)). Checks the input (text up
   to 20,000 characters, or a real PDF up to 3 MB), sends it to Gemini with a JSON schema and
   parsing rules, validates the reply with zod, and flags any line that doesn't match the original
@@ -102,11 +104,13 @@ Create a file named `.env.local` in the project folder (it's git-ignored):
 ```
 APP_PASSCODE=choose-a-passcode
 APP_GUEST_PASSCODE=optional-demo-passcode
+APP_PUBLIC_DEMO=on
 GEMINI_API_KEY=your-gemini-key
 ELEVENLABS_API_KEY=your-elevenlabs-key
 ```
 
-`APP_GUEST_PASSCODE` is optional: leave it out to turn demo mode off. Then:
+`APP_GUEST_PASSCODE` and `APP_PUBLIC_DEMO` are optional. Leave out `APP_GUEST_PASSCODE` to turn
+demo mode off, or `APP_PUBLIC_DEMO` to keep demo mode passcode-only (no public `/try` link). Then:
 
 ```bash
 npm run dev    # http://localhost:3000

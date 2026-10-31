@@ -11,7 +11,10 @@ export async function proxy(request: NextRequest) {
     // Code calling an API expects JSON, not a redirect to an HTML page.
     return NextResponse.json({ error: "Not logged in." }, { status: 401 });
   }
-  if (!loggedIn && !isLoginPage) {
+  // /try is the one other page open without a login: the public demo link. It decides for
+  // itself whether to log the visitor in as a guest (see app/try/route.ts).
+  const isDemoLink = request.nextUrl.pathname === "/try";
+  if (!loggedIn && !isLoginPage && !isDemoLink) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
   if (loggedIn && isLoginPage) {

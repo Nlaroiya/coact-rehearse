@@ -6,8 +6,20 @@
 //  - guest: APP_GUEST_PASSCODE (optional). Demo mode: a pre-loaded scene, and nothing that
 //    spends API credits (no parsing, no new voice audio).
 // If APP_PASSCODE is missing, everyone is locked out, guests included.
+//
+// Public demo link: when APP_PUBLIC_DEMO=on, visiting /try logs you in as a guest without a
+// passcode (for sharing on a résumé). Guests can't spend credits either way.
 
 export const AUTH_COOKIE = "coact_rehearse_auth";
+
+// How the login cookie is stored, shared by the login form and the /try link.
+export const AUTH_COOKIE_OPTIONS = {
+  httpOnly: true, // JavaScript in the browser can't read it
+  secure: process.env.NODE_ENV === "production", // HTTPS-only once deployed
+  sameSite: "lax",
+  path: "/",
+  maxAge: 60 * 60 * 24 * 30, // 30 days
+} as const;
 
 export type Role = "owner" | "guest";
 
@@ -55,6 +67,12 @@ export function safeEqual(a: string, b: string): boolean {
     diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   }
   return diff === 0;
+}
+
+// Is the public /try link switched on? Needs APP_PUBLIC_DEMO=on and demo mode configured
+// (which itself needs APP_PASSCODE), so a missing passcode still locks everyone out.
+export function publicDemoEnabled(): boolean {
+  return process.env.APP_PUBLIC_DEMO?.trim().toLowerCase() === "on" && getGuestPasscode() !== null;
 }
 
 // Which login a cookie belongs to, or null if it's missing or invalid.

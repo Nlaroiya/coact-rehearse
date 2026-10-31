@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { expectedToken, getGuestPasscode, isValidToken, roleForPasscode, sessionRole } from "./auth";
+import { expectedToken, getGuestPasscode, isValidToken, publicDemoEnabled, roleForPasscode, sessionRole } from "./auth";
 
 // Fake passcodes for the tests only (the real ones live in .env.local and Vercel).
 const OWNER = "owner-test-pass";
@@ -78,5 +78,37 @@ describe("login cookies", () => {
     setEnv(undefined, GUEST);
     expect(await sessionRole(owner)).toBeNull();
     expect(await sessionRole(guest)).toBeNull();
+  });
+});
+
+describe("public demo link (/try)", () => {
+  it("is on only when APP_PUBLIC_DEMO=on and both passcodes are set", () => {
+    setEnv(OWNER, GUEST);
+    vi.stubEnv("APP_PUBLIC_DEMO", "on");
+    expect(publicDemoEnabled()).toBe(true);
+    vi.stubEnv("APP_PUBLIC_DEMO", " ON ");
+    expect(publicDemoEnabled()).toBe(true); // forgiving about spaces and capitals
+  });
+
+  it("is off when the switch is missing or set to anything else", () => {
+    setEnv(OWNER, GUEST);
+    vi.stubEnv("APP_PUBLIC_DEMO", undefined);
+    expect(publicDemoEnabled()).toBe(false);
+    for (const value of ["off", "true", "yes", ""]) {
+      vi.stubEnv("APP_PUBLIC_DEMO", value);
+      expect(publicDemoEnabled()).toBe(false);
+    }
+  });
+
+  it("is off without demo mode (no guest passcode)", () => {
+    setEnv(OWNER, undefined);
+    vi.stubEnv("APP_PUBLIC_DEMO", "on");
+    expect(publicDemoEnabled()).toBe(false);
+  });
+
+  it("is off if APP_PASSCODE is missing: everyone stays locked out", () => {
+    setEnv(undefined, GUEST);
+    vi.stubEnv("APP_PUBLIC_DEMO", "on");
+    expect(publicDemoEnabled()).toBe(false);
   });
 });
